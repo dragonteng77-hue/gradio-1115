@@ -10,6 +10,8 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
+from pwa_support import PWAInjectMiddleware
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_DIR = Path(__file__).parent
@@ -91,51 +93,6 @@ def describe(df):
     return df.describe(include="all").T.reset_index().rename(columns={"index": "欄位"})
 
 
-# ---------------- PWA:<head> 注入 ----------------
-HEAD = """
-<link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#0d9488">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="臺南開放資料">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-<link rel="icon" type="image/png" href="/icons/icon-192.png">
-<script>
-  // 註冊 Service Worker(需 HTTPS 或 localhost)
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", function () {
-      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function (e) {
-        console.warn("SW 註冊失敗:", e);
-      });
-    });
-  }
-
-  // 自訂「安裝成 App」按鈕(Chrome / Edge / Android)
-  var deferredPrompt = null;
-  window.addEventListener("beforeinstallprompt", function (e) {
-    e.preventDefault();
-    deferredPrompt = e;
-    if (document.getElementById("pwa-install")) return;
-    var b = document.createElement("button");
-    b.id = "pwa-install";
-    b.textContent = "📲 安裝成 App";
-    b.onclick = async function () {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      b.remove();
-    };
-    document.body.appendChild(b);
-  });
-  window.addEventListener("appinstalled", function () {
-    var b = document.getElementById("pwa-install");
-    if (b) b.remove();
-  });
-</script>
-"""
-
 # ---------------- 介面(RWD) ----------------
 theme = gr.themes.Soft(
     primary_hue="teal",
@@ -191,7 +148,7 @@ button, .gr-button { min-height: 44px; }
 }
 """
 
-with gr.Blocks(theme=theme, css=css, head=HEAD, title="臺南市開放資料檢視器") as demo:
+with gr.Blocks(theme=theme, css=css, title="臺南市開放資料檢視器") as demo:
     gr.HTML(
         """
         <div class="header">
@@ -248,6 +205,7 @@ with gr.Blocks(theme=theme, css=css, head=HEAD, title="臺南市開放資料檢�
 
 # ---------------- FastAPI:PWA 路由 + 掛載 Gradio ----------------
 app = FastAPI()
+app.add_middleware(PWAInjectMiddleware)  # 伺服器端注入 PWA 標籤與 lang=zh-TW
 
 
 @app.get("/manifest.webmanifest")

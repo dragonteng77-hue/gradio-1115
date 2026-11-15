@@ -17,6 +17,7 @@
 ```
 .
 ├── app.py                    # 主程式(FastAPI + Gradio)
+├── pwa_support.py           # PWA 標籤伺服器端注入(中介層)
 ├── requirements.txt          # 相依套件
 ├── render.yaml               # Render Blueprint 設定(選用)
 ├── make_icons.py             # 圖示產生器(選用,需 pillow)
@@ -71,6 +72,8 @@ python app.py
 ## 🔧 PWA 運作說明
 
 - `/manifest.webmanifest`、`/sw.js`、`/offline`、`/icons/*` 由 FastAPI 在**根路徑**提供,Service Worker 才能控制整個網站。
+- **PWA 標籤由伺服器端注入**:`pwa_support.py` 的中介層會改寫首頁 HTML,在 `<head>` 加入 manifest、圖示、Service Worker 註冊腳本,並把 `lang` 改成 `zh-TW`(避免 Chrome 誤跳出翻譯)。
+  - 不使用 `gr.Blocks(head=...)`:Gradio 前端是頁面載入後才動態插入 head,此時 `load` 事件已過,Service Worker 不會被註冊。
 - Service Worker 策略:
   - 頁面導覽:網路優先,斷線時顯示 `/offline`
   - `/assets`、`/static`、`/icons`:快取優先
@@ -78,6 +81,16 @@ python app.py
 - 此工具需要連線才能下載資料,因此「離線」僅提供提示頁,不是完整離線功能。
 - **改版後**請修改 `pwa/sw.js` 的 `VERSION`(例如 `v2`),讓使用者端更新快取。
 - 圖示可修改 `make_icons.py` 的顏色與圖形後重新執行:`pip install pillow && python make_icons.py`。
+
+## 🩺 PWA 檢查清單
+
+部署後如果網址列沒有安裝圖示,依序確認:
+
+1. 直接開 `https://你的網址/manifest.webmanifest`,應該看到 JSON(看到 Gradio 畫面代表部署的不是這個版本)。
+2. 開 `https://你的網址/sw.js`,應該看到 JavaScript 程式碼。
+3. Chrome 開發者工具 → **Application** → **Manifest** 看有沒有錯誤,**Service Workers** 看狀態是否為 activated。
+4. 若曾裝過舊版,先在 Service Workers 按 **Unregister**、Storage 按 **Clear site data**,再強制重新整理(Ctrl+Shift+R)。
+5. 已安裝過的網站,Chrome 不會再顯示安裝圖示。
 
 ## ⚠️ 注意事項
 
